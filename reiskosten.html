@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reiskosten Declaratie</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f2f2f7;--card:#fff;--border:rgba(0,0,0,.1);--text:#1c1c1e;--text2:#3c3c43;--text3:#8e8e93;
+  --accent:#007aff;--accent-d:#0062cc;--green:#34c759;--orange:#ff9500;--red:#ff3b30;
+  --commute:#007aff;--biz:#ff9500;
+  --shadow:0 1px 3px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.08);
+  --shadow-lg:0 10px 40px rgba(0,0,0,.18);
+  --r:12px;--rs:8px;
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+#app{display:flex;flex-direction:column;min-height:100vh}
+
+/* HEADER */
+header{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.app-title{font-size:17px;font-weight:700;letter-spacing:-.4px}
+.header-left{display:flex;align-items:center;gap:16px}
+.header-right{display:flex;align-items:center;gap:8px}
+.month-nav{display:flex;align-items:center;gap:4px;background:var(--bg);border-radius:20px;padding:3px}
+.month-nav button{border:none;background:none;cursor:pointer;width:28px;height:28px;border-radius:14px;font-size:18px;color:var(--accent);display:flex;align-items:center;justify-content:center;transition:background .15s}
+.month-nav button:hover{background:rgba(0,0,0,.06)}
+.month-name{min-width:150px;text-align:center;font-weight:600;font-size:14px;padding:0 4px}
+
+/* BUTTONS */
+.btn{border:none;border-radius:var(--rs);cursor:pointer;font-family:inherit;font-size:13px;font-weight:500;padding:7px 14px;transition:all .15s;display:inline-flex;align-items:center;gap:6px}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-d)}
+.btn-ghost{background:transparent;color:var(--text2);border:1.5px solid var(--border)}.btn-ghost:hover{background:var(--bg)}
+.btn-icon{padding:6px 8px;border-radius:var(--rs);background:transparent;border:none;cursor:pointer;color:var(--text2);font-size:17px;transition:background .15s}.btn-icon:hover{background:var(--bg)}
+.btn-commute{background:rgba(0,122,255,.1);color:var(--commute);border:none;width:100%;justify-content:center}.btn-commute:hover{background:rgba(0,122,255,.18)}
+.btn-biz{background:rgba(255,149,0,.1);color:var(--biz);border:none;width:100%;justify-content:center}.btn-biz:hover{background:rgba(255,149,0,.18)}
+
+/* LAYOUT */
+main{display:grid;grid-template-columns:1fr 290px;gap:20px;padding:20px 24px;max-width:1200px;width:100%;margin:0 auto}
+.sidebar{display:flex;flex-direction:column;gap:16px}
+
+/* CARDS */
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.card-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-title{font-size:15px;font-weight:600}
+
+/* TABLE */
+table{width:100%;border-collapse:collapse}
+thead th{text-align:left;padding:9px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid rgba(0,0,0,.04);transition:background .1s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(0,0,0,.02)}
+tbody td{padding:9px 14px;font-size:13px;vertical-align:middle}
+.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-c{background:rgba(0,122,255,.1);color:var(--commute)}
+.badge-b{background:rgba(255,149,0,.1);color:var(--biz)}
+.action-btn{border:none;background:none;cursor:pointer;padding:3px 6px;border-radius:6px;font-size:13px;color:var(--text3);transition:all .15s}
+.action-btn:hover{background:var(--bg);color:var(--text)}
+.action-btn.del:hover{background:rgba(255,59,48,.1);color:var(--red)}
+.empty{padding:56px 20px;text-align:center;color:var(--text3)}
+.empty .icon{font-size:36px;margin-bottom:10px}
+.empty p{font-size:15px;margin-bottom:4px}
+.empty small{font-size:12px}
+
+/* SUMMARY */
+.sum-pad{padding:18px}
+.sum-lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.sum-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px}
+.sum-row-lbl{color:var(--text2)}
+.sum-row-val{font-weight:500}
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sum-total{display:flex;justify-content:space-between;align-items:center;font-size:17px;font-weight:700}
+.exp-pad{padding:14px 18px}
+.exp-title{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);margin-bottom:10px}
+.exp-btns{display:flex;flex-direction:column;gap:8px}
+
+/* MODAL */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .2s}
+.overlay.on{opacity:1;pointer-events:all}
+.modal{background:var(--card);border-radius:16px;box-shadow:var(--shadow-lg);width:500px;max-width:calc(100vw - 40px);transform:scale(.96) translateY(8px);transition:transform .2s}
+.overlay.on .modal{transform:scale(1) translateY(0)}
+.modal-hdr{padding:18px 22px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-title{font-size:17px;font-weight:600}
+.modal-body{padding:18px 22px}
+.modal-ftr{padding:14px 22px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+/* FORM */
+.frow{margin-bottom:14px}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+label{display:block;font-size:11px;font-weight:700;color:var(--text2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+input[type=text],input[type=date],input[type=number],select{width:100%;border:1.5px solid var(--border);border-radius:var(--rs);padding:8px 11px;font-size:14px;font-family:inherit;color:var(--text);background:var(--card);outline:none;transition:border-color .15s}
+input:focus,select:focus{border-color:var(--accent)}
+.type-sel{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.type-opt{padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--rs);cursor:pointer;text-align:center;font-size:13px;font-weight:500;transition:all .15s;user-select:none}
+.type-opt:hover{border-color:var(--accent)}
+.type-opt.sel-c{border-color:var(--commute);background:rgba(0,122,255,.07);color:var(--commute)}
+.type-opt.sel-b{border-color:var(--biz);background:rgba(255,149,0,.07);color:var(--biz)}
+.km-hint{font-size:11px;margin-top:4px;padding:5px 8px;background:rgba(255,149,0,.08);border-radius:5px;color:var(--biz)}
+.info-box{margin-top:14px;padding:10px 14px;background:var(--bg);border-radius:var(--rs);font-size:12px;color:var(--text3);line-height:1.5}
+.addr-chips{display:flex;gap:6px;margin-top:5px}
+.addr-chip{border:none;background:var(--bg);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;cursor:pointer;color:var(--text2);font-family:inherit;transition:all .15s}
+.addr-chip:hover{background:var(--border)}
+.addr-chip.home{color:var(--commute)}.addr-chip.home:hover{background:rgba(0,122,255,.12)}
+.addr-chip.work{color:#34c759}.addr-chip.work:hover{background:rgba(52,199,89,.12)}
+
+@media(max-width:768px){main{grid-template-columns:1fr}.sidebar{order:-1}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+let cfg = {
+  homeAddress: '', workAddress: '',
+  commuteRate: 0.23, businessRate: 0.28, defaultCommuteKm: ''
+};
+let trips = [];
+let curMonth = new Date().toISOString().slice(0,7);
+let showTrip = false, showSettings = false, editId = null;
+let f = { date: '', from: '', to: '', type: 'commute', km: '', notes: '' };
+
+function persist() {
+  fetch('/api/data', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cfg, trips})
+  }).catch(() => alert('Opslaan mislukt. Draait de server nog?'));
+}
+
+async function init() {
+  try {
+    const resp = await fetch('/api/data');
+    const data = await resp.json();
+    if(data.cfg)   cfg   = {...cfg,   ...data.cfg};
+    if(data.trips) trips = data.trips;
+  } catch(e) {
+    console.warn('Kan data niet laden via server:', e);
+  }
+  if(!cfg.homeAddress) setTimeout(openSettings, 300);
+  render();
+}
+
+// ── BUSINESS LOGIC ─────────────────────────────────────────────────────────
+const MAX_WW = 86;
+
+function normAddr(a) { return (a||'').toLowerCase().trim(); }
+function isHome(a) { return cfg.homeAddress && normAddr(a) === normAddr(cfg.homeAddress); }
+
+function monthTrips(m) {
+  return trips.filter(t => t.date.startsWith(m)).sort((a,b) => a.date < b.date ? -1 : a.date > b.date ? 1 : a.id - b.id);
+}
+
+// Enrich each trip with commuteReimb + bizReimb per day
+function enrich(list) {
+  const byDay = {};
+  list.forEach(t => { (byDay[t.date] = byDay[t.date]||[]).push(t); });
+  const out = {};
+
+  Object.values(byDay).forEach(dayTrips => {
+    // WOON-WERK: eigen 86km-cap, overschot vervalt (nooit zakelijk tarief)
+    let wwRem = MAX_WW;
+    dayTrips.filter(t => t.type==='commute').forEach(t => {
+      const km = parseFloat(t.km)||0;
+      const cr = Math.min(km, wwRem);
+      wwRem = Math.max(0, wwRem - km);
+      out[t.id] = {cr, br: 0};
+    });
+
+    // ZAKELIJK: eigen 86km-grens per dag
+    // dag-totaal ≤86km → alles woon-werk tarief; >86km → eerste 86km woon-werk, rest zakelijk
+    let bizRem = MAX_WW;
+    dayTrips.filter(t => t.type==='business').forEach(t => {
+      const km = parseFloat(t.km)||0;
+      const cr = Math.min(km, bizRem);
+      const br = km - cr;
+      bizRem = Math.max(0, bizRem - km);
+      out[t.id] = {cr, br};
+    });
+  });
+
+  return list.map(t => ({...t, ...(out[t.id]||{cr:0,br:0})}));
+}
+
+function summary(m) {
+  const e = enrich(monthTrips(m));
+  let wkm=0, wreibm=0, bkm=0, breibm=0;
+  e.forEach(t => {
+    const km = parseFloat(t.km)||0;
+    if(t.type==='commute') { wkm+=km; }
+    else { bkm+=km; }
+    wreibm += t.cr||0;
+    breibm += t.br||0;
+  });
+  return {
+    wkm, wreibm,
+    bkm, breibm,
+    wAmt: wreibm * cfg.commuteRate,
+    wAmtFull: wkm * cfg.commuteRate,
+    bAmt: breibm * cfg.businessRate
+  };
+}
+
+// ── EXPORT ─────────────────────────────────────────────────────────────────
+function eur(n) { return n.toFixed(2).replace('.',','); }
+function fmtDate(d) { const [y,m,dd]=d.split('-'); return `${dd}-${m}-${y}`; }
+function fmtNum(n) { return (Math.round((parseFloat(n)||0)*10)/10).toString().replace('.',','); }
+
+function doExport(type) {
+  const e = enrich(monthTrips(curMonth));
+  const rows = [];
+  let totKm=0, totR=0;
+
+  if(type==='commute') {
+    rows.push(['Datum','Van','Naar','Type','Gereden km','Vergoedbare km','Bedrag (€)','Opmerking']);
+    e.filter(t => (t.cr||0)>0).forEach(t => {
+      const kr = t.cr||0;
+      totKm += parseFloat(t.km)||0;
+      totR += kr;
+      rows.push([fmtDate(t.date), t.from, t.to,
+        t.type==='commute'?'Woon-werk':'Zakelijk (ww-deel)',
+        fmtNum(t.km), fmtNum(kr), eur(kr*cfg.commuteRate), t.notes||'']);
+    });
+    rows.push([]);
+    rows.push(['','','','TOTAAL', fmtNum(totKm), fmtNum(totR), eur(totR*cfg.commuteRate),'']);
+    rows.push(['','','','Zonder daglimiet', fmtNum(totKm), fmtNum(totKm), eur(totKm*cfg.commuteRate),'']);
+  } else {
+    rows.push(['Datum','Van','Naar','Gereden km','Vergoedbare km','Bedrag (€)','Opmerking']);
+    e.filter(t => t.type==='business' && (t.br||0)>0).forEach(t => {
+      const kr = t.br||0;
+      totKm += parseFloat(t.km)||0;
+      totR += kr;
+      const note = (t.cr||0)>0 ? `Boven ww-grens (${t.cr} km ww)` : (t.notes||'');
+      rows.push([fmtDate(t.date), t.from, t.to, fmtNum(t.km), fmtNum(kr), eur(kr*cfg.businessRate), note]);
+    });
+    rows.push([]);
+    rows.push(['','','TOTAAL', fmtNum(totKm), fmtNum(totR), eur(totR*cfg.businessRate),'']);
+  }
+
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Reiskosten_${type==='commute'?'Woonwerk':'Zakelijk'}_${curMonth}.csv`;
+  a.click();
+}
+
+// ── HELPERS ────────────────────────────────────────────────────────────────
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function monthLabel(m) {
+  const [y,mo]=m.split('-');
+  return new Date(y,mo-1,1).toLocaleDateString('nl-NL',{month:'long',year:'numeric'});
+}
+function navMonth(d) {
+  const [y,m]=curMonth.split('-').map(Number);
+  const nd = new Date(y,m-1+d,1);
+  curMonth = `${nd.getFullYear()}-${String(nd.getMonth()+1).padStart(2,'0')}`;
+  render();
+}
+function uniqAddrs() {
+  const s = new Set([cfg.homeAddress, cfg.workAddress, ...trips.flatMap(t=>[t.from,t.to])]);
+  s.delete(''); s.delete(undefined);
+  return [...s];
+}
+function genId(){ return Date.now()*1000 + Math.floor(Math.random()*1000); }
+function fmtCur(n){ return new Intl.NumberFormat('nl-NL',{style:'currency',currency:'EUR'}).format(n); }
+function fmtKm(n){ return (Math.round((parseFloat(n)||0)*10)/10).toString().replace('.',','); }
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function render() {
+  document.getElementById('app').innerHTML = html();
+  bindEvents();
+}
+
+function html() {
+  return header() + `<main><div>${tripTable()}</div><div class="sidebar">${sumCard()}${expCard()}</div></main>` + tripModal() + settingsModal();
+}
+
+function header() {
+  return `<header>
+    <div class="header-left">
+      <span class="app-title">🚗 Reiskosten</span>
+      <div class="month-nav">
+        <button onclick="navMonth(-1)">‹</button>
+        <span class="month-name">${monthLabel(curMonth)}</span>
+        <button onclick="navMonth(1)">›</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-primary" onclick="openAdd()">+ Reis toevoegen</button>
+      <button class="btn-icon" onclick="openSettings()" title="Instellingen">⚙️</button>
+    </div>
+  </header>`;
+}
+
+function tripTable() {
+  const list = enrich(monthTrips(curMonth));
+  if(!list.length) return `<div class="card"><div class="empty"><div class="icon">🗺️</div><p>Geen reizen in ${monthLabel(curMonth)}</p><small>Klik op "+ Reis toevoegen" om te beginnen</small></div></div>`;
+
+  const rows = list.map(t => {
+    const km = parseFloat(t.km)||0;
+    const cr = t.cr||0, br = t.br||0;
+    let reimbStr;
+    if(t.type==='commute') {
+      reimbStr = cr<km ? `${fmtKm(cr)} km (max ${MAX_WW})` : `${fmtKm(cr)} km`;
+    } else {
+      const parts = [];
+      if(cr>0) parts.push(`${fmtKm(cr)} km ww`);
+      if(br>0) parts.push(`${fmtKm(br)} km zak.`);
+      reimbStr = parts.join(' + ') || '0 km';
+    }
+    return `<tr>
+      <td>${fmtDate(t.date)}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.from)}">${esc(t.from)}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.to)}">${esc(t.to)}</td>
+      <td><span class="badge ${t.type==='commute'?'badge-c':'badge-b'}">${t.type==='commute'?'Woon-werk':'Zakelijk'}</span></td>
+      <td>${fmtKm(km)} km</td>
+      <td style="color:var(--text3);font-size:12px">${reimbStr}</td>
+      <td>
+        <button class="action-btn" onclick="openEdit(${t.id})">✏️</button>
+        <button class="action-btn del" onclick="delTrip(${t.id})">🗑️</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card">
+    <div class="card-header">
+      <span class="card-title">Reizen — ${monthLabel(curMonth)}</span>
+      <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
+    </div>
+    <table>
+      <thead><tr><th>Datum</th><th>Van</th><th>Naar</th><th>Type</th><th>Km</th><th>Vergoed</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function sumCard() {
+  const s = summary(curMonth);
+  const total = s.wAmt + s.bAmt;
+  return `<div class="card sum-pad">
+    <div class="sum-lbl" style="color:var(--commute)">🏠 Woon-werk</div>
+    <div class="sum-row"><span class="sum-row-lbl">Gereden km</span><span class="sum-row-val">${fmtKm(s.wkm)} km</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Vergoedbaar km</span><span class="sum-row-val">${fmtKm(s.wreibm)} km</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Vergoeding (met daglimiet)</span><span class="sum-row-val" style="color:var(--commute)">${fmtCur(s.wAmt)}</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Vergoeding (zonder daglimiet)</span><span class="sum-row-val" style="color:var(--text3)">${fmtCur(s.wAmtFull)}</span></div>
+    <div class="divider"></div>
+    <div class="sum-lbl" style="color:var(--biz)">💼 Zakelijk</div>
+    <div class="sum-row"><span class="sum-row-lbl">Gereden km</span><span class="sum-row-val">${fmtKm(s.bkm)} km</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Vergoedbaar km</span><span class="sum-row-val">${fmtKm(s.breibm)} km</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Vergoeding</span><span class="sum-row-val" style="color:var(--biz)">${fmtCur(s.bAmt)}</span></div>
+    <div class="divider"></div>
+    <div class="sum-total"><span>Totaal</span><span>${fmtCur(total)}</span></div>
+  </div>`;
+}
+
+function expCard() {
+  return `<div class="card exp-pad">
+    <div class="exp-title">Exporteren als CSV</div>
+    <div class="exp-btns">
+      <button class="btn btn-commute" onclick="doExport('commute')">📥 Woon-werk export</button>
+      <button class="btn btn-biz" onclick="doExport('business')">📥 Zakelijk export</button>
+    </div>
+  </div>`;
+}
+
+function tripModal() {
+  const addrs = uniqAddrs().map(a => `<option value="${esc(a)}">`).join('');
+  const isEdit = editId !== null;
+  const showHint = f.type==='business';
+  return `<div class="overlay${showTrip?' on':''}" id="trip-ov" onclick="ovClick(event,'trip')">
+    <div class="modal">
+      <div class="modal-hdr"><span class="modal-title">${isEdit?'Reis bewerken':'Reis toevoegen'}</span><button class="btn-icon" onclick="closeTrip()">✕</button></div>
+      <div class="modal-body">
+        <datalist id="addrlist">${addrs}</datalist>
+        <div class="frow2">
+          <div>
+            <label for="f-date">Datum</label>
+            <input type="date" id="f-date" value="${f.date}">
+          </div>
+          <div>
+            <label>Type reis</label>
+            <div class="type-sel">
+              <div class="type-opt${f.type==='commute'?' sel-c':''}" onclick="setType('commute')">🏠 Woon-werk</div>
+              <div class="type-opt${f.type==='business'?' sel-b':''}" onclick="setType('business')">💼 Zakelijk</div>
+            </div>
+          </div>
+        </div>
+        <div class="frow">
+          <label for="f-from">Vertrekadres</label>
+          <input type="text" id="f-from" value="${esc(f.from)}" list="addrlist" placeholder="Bijv. Thuisadres" autocomplete="off">
+          <div class="addr-chips">
+            ${cfg.homeAddress?`<button type="button" class="addr-chip home" onclick="fillAddr('from','home')">🏠 Thuis</button>`:''}
+            ${cfg.workAddress?`<button type="button" class="addr-chip work" onclick="fillAddr('from','work')">🏢 Werk</button>`:''}
+          </div>
+        </div>
+        <div class="frow">
+          <label for="f-to">Aankomstadres</label>
+          <input type="text" id="f-to" value="${esc(f.to)}" list="addrlist" placeholder="Bijv. Werkadres" autocomplete="off">
+          <div class="addr-chips">
+            ${cfg.homeAddress?`<button type="button" class="addr-chip home" onclick="fillAddr('to','home')">🏠 Thuis</button>`:''}
+            ${cfg.workAddress?`<button type="button" class="addr-chip work" onclick="fillAddr('to','work')">🏢 Werk</button>`:''}
+          </div>
+        </div>
+        <div class="frow">
+          <label for="f-km">Gereden kilometers</label>
+          <input type="number" id="f-km" value="${f.km}" placeholder="0" min="0" step="0.1">
+          ${showHint?`<div class="km-hint">💡 Alle km op een kalenderdag tot ${MAX_WW} km totaal tellen als woon-werk; daarboven zakelijk</div>`:''}
+        </div>
+        <div class="frow">
+          <label for="f-notes">Opmerking (optioneel)</label>
+          <input type="text" id="f-notes" value="${esc(f.notes||'')}" placeholder="Bijv. klantbezoek Amsterdam">
+        </div>
+      </div>
+      <div class="modal-ftr">
+        <button class="btn btn-ghost" onclick="closeTrip()">Annuleren</button>
+        <button class="btn btn-primary" onclick="saveTrip()">${isEdit?'Opslaan':'Toevoegen'}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function settingsModal() {
+  return `<div class="overlay${showSettings?' on':''}" id="set-ov" onclick="ovClick(event,'set')">
+    <div class="modal">
+      <div class="modal-hdr"><span class="modal-title">Instellingen</span><button class="btn-icon" onclick="closeSettings()">✕</button></div>
+      <div class="modal-body">
+        <div class="frow">
+          <label for="s-home">Thuisadres (standaard vertrekadres)</label>
+          <input type="text" id="s-home" value="${esc(cfg.homeAddress)}" placeholder="Straat Nummer, Plaats">
+        </div>
+        <div class="frow">
+          <label for="s-work">Werkadres (standaard aankomst woon-werk)</label>
+          <input type="text" id="s-work" value="${esc(cfg.workAddress)}" placeholder="Straat Nummer, Plaats">
+        </div>
+        <div class="frow2">
+          <div>
+            <label for="s-cr">Woon-werk tarief (€/km)</label>
+            <input type="number" id="s-cr" value="${cfg.commuteRate}" step="0.01" min="0">
+          </div>
+          <div>
+            <label for="s-br">Zakelijk tarief (€/km)</label>
+            <input type="number" id="s-br" value="${cfg.businessRate}" step="0.01" min="0">
+          </div>
+        </div>
+        <div class="frow">
+          <label for="s-dkm">Standaard km woon-werk rit</label>
+          <input type="number" id="s-dkm" value="${cfg.defaultCommuteKm||''}" placeholder="Leeg = geen standaard" min="0" step="0.1">
+        </div>
+        <div class="info-box">
+          <strong>Regels:</strong> Woon-werk wordt vergoed tot max. ${MAX_WW} km per dag.
+          Zakelijke ritten vanaf het thuisadres tellen tot ${MAX_WW} km als woon-werk;
+          het meerdere wordt als zakelijk vergoed.
+        </div>
+      </div>
+      <div class="modal-ftr">
+        <button class="btn btn-ghost" onclick="closeSettings()">Annuleren</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Opslaan</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ── ACTIONS ────────────────────────────────────────────────────────────────
+function openAdd() {
+  editId = null;
+  f = {
+    date: new Date().toISOString().slice(0,10),
+    from: cfg.homeAddress||'',
+    to: cfg.workAddress||'',
+    type: 'commute', km: cfg.defaultCommuteKm||'', notes: ''
+  };
+  showTrip = true;
+  render();
+  setTimeout(()=>document.getElementById('f-km')?.focus(),50);
+}
+
+function openEdit(id) {
+  const t = trips.find(x=>x.id===id);
+  if(!t) return;
+  editId = id;
+  f = {...t};
+  showTrip = true;
+  render();
+}
+
+function closeTrip() { showTrip=false; render(); }
+
+function setType(type) {
+  syncForm();
+  f.type = type;
+  if(type==='commute') {
+    if(!f.from) f.from = cfg.homeAddress||'';
+    if(!f.to)   f.to   = cfg.workAddress||'';
+    f.km = cfg.defaultCommuteKm||'';
+  } else {
+    if(!f.from) f.from = cfg.homeAddress||'';
+    f.to = '';
+    f.km = '';
+  }
+  render();
+  setTimeout(()=>document.getElementById('f-km')?.focus(),50);
+}
+
+function fillAddr(field, type) {
+  const val = type==='home' ? cfg.homeAddress : cfg.workAddress;
+  const el = document.getElementById(field==='from'?'f-from':'f-to');
+  if(el) { el.value = val; el.dispatchEvent(new Event('input')); }
+  if(field==='from') f.from = val; else f.to = val;
+}
+
+function syncForm() {
+  const d=document.getElementById('f-date'); if(d) f.date=d.value;
+  const fr=document.getElementById('f-from'); if(fr) f.from=fr.value;
+  const to=document.getElementById('f-to'); if(to) f.to=to.value;
+  const km=document.getElementById('f-km'); if(km) f.km=km.value;
+  const n=document.getElementById('f-notes'); if(n) f.notes=n.value;
+}
+
+function saveTrip() {
+  syncForm();
+  const date=f.date, from=(f.from||'').trim(), to=(f.to||'').trim(), km=Math.round(parseFloat(f.km)*10)/10;
+  if(!date||!from||!to||isNaN(km)||km<=0){ alert('Vul datum, adressen en kilometers in.'); return; }
+  if(editId!==null) {
+    const i=trips.findIndex(t=>t.id===editId);
+    if(i>=0) trips[i]={...trips[i], date, from, to, type:f.type, km, notes:f.notes||''};
+  } else {
+    trips.push({id:genId(), date, from, to, type:f.type, km, notes:f.notes||''});
+    if(confirm(`Ook een terugreis toevoegen?\n\n${to} → ${from}\n${km} km`)) {
+      trips.push({id:genId(), date, from:to, to:from, type:f.type, km, notes:f.notes||''});
+    }
+  }
+  persist();
+  curMonth = date.slice(0,7);
+  showTrip = false;
+  render();
+}
+
+function delTrip(id) {
+  if(!confirm('Weet je zeker dat je deze reis wilt verwijderen?')) return;
+  trips = trips.filter(t=>t.id!==id);
+  persist();
+  render();
+}
+
+function openSettings() { showSettings=true; render(); setTimeout(()=>document.getElementById('s-home')?.focus(),50); }
+function closeSettings() { showSettings=false; render(); }
+function saveSettings() {
+  cfg.homeAddress = (document.getElementById('s-home')?.value||'').trim();
+  cfg.workAddress = (document.getElementById('s-work')?.value||'').trim();
+  cfg.commuteRate = parseFloat(document.getElementById('s-cr')?.value)||0.23;
+  cfg.businessRate = parseFloat(document.getElementById('s-br')?.value)||0.28;
+  cfg.defaultCommuteKm = document.getElementById('s-dkm')?.value||'';
+  persist();
+  closeSettings();
+}
+
+function ovClick(e,which) {
+  if(e.target===e.currentTarget){ which==='trip'?closeTrip():closeSettings(); }
+}
+
+// ── EVENTS ─────────────────────────────────────────────────────────────────
+function bindEvents() {
+  // Live update km hint when from address changes
+  const fromEl = document.getElementById('f-from');
+  if(fromEl) {
+    fromEl.addEventListener('input', e=>{
+      f.from = e.target.value;
+      const hint = document.querySelector('.km-hint');
+      const shouldShow = f.type==='business' && isHome(f.from);
+      if(shouldShow && !hint) {
+        const kmField = document.getElementById('f-km');
+        if(kmField) {
+          const div = document.createElement('div');
+          div.className='km-hint';
+          div.textContent=`💡 Vertrek vanuit huis: eerste ${MAX_WW} km telt als woon-werk, daarboven zakelijk`;
+          kmField.after(div);
+        }
+      } else if(!shouldShow && hint) hint.remove();
+    });
+  }
+  // Enter submits
+  ['f-km','f-notes','f-to'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') saveTrip(); });
+  });
+  ['s-cr','s-br','s-work'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('keydown',e=>{ if(e.key==='Enter') saveSettings(); });
+  });
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ if(showTrip)closeTrip(); else if(showSettings)closeSettings(); }
+  if(e.key==='n' && e.metaKey && !showTrip && !showSettings){ e.preventDefault(); openAdd(); }
+});
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
