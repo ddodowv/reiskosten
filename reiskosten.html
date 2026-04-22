@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reiskosten Declaratie</title>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -205,7 +206,11 @@ function eur(n) { return n.toFixed(2).replace('.',','); }
 function fmtDate(d) { const [y,m,dd]=d.split('-'); return `${dd}-${m}-${y}`; }
 function fmtNum(n) { return (Math.round((parseFloat(n)||0)*10)/10).toString().replace('.',','); }
 
+function round2(n) { return Math.round((parseFloat(n)||0)*100)/100; }
+
 function doExport(type) {
+  if(typeof XLSX === 'undefined') { alert('Excel bibliotheek nog niet geladen. Controleer je internetverbinding.'); return; }
+
   const e = enrich(monthTrips(curMonth));
   const rows = [];
   let totKm=0, totR=0;
@@ -214,34 +219,38 @@ function doExport(type) {
     rows.push(['Datum','Van','Naar','Type','Gereden km','Vergoedbare km','Bedrag (€)','Opmerking']);
     e.filter(t => (t.cr||0)>0).forEach(t => {
       const kr = t.cr||0;
-      totKm += parseFloat(t.km)||0;
-      totR += kr;
+      const km = parseFloat(t.km)||0;
+      totKm += km; totR += kr;
       rows.push([fmtDate(t.date), t.from, t.to,
         t.type==='commute'?'Woon-werk':'Zakelijk (ww-deel)',
-        fmtNum(t.km), fmtNum(kr), eur(kr*cfg.commuteRate), t.notes||'']);
+        km, kr, round2(kr*cfg.commuteRate), t.notes||'']);
     });
     rows.push([]);
-    rows.push(['','','','TOTAAL', fmtNum(totKm), fmtNum(totR), eur(totR*cfg.commuteRate),'']);
-    rows.push(['','','','Zonder daglimiet', fmtNum(totKm), fmtNum(totKm), eur(totKm*cfg.commuteRate),'']);
+    rows.push(['','','','TOTAAL', totKm, totR, round2(totR*cfg.commuteRate),'']);
+    rows.push(['','','','Zonder daglimiet', totKm, totKm, round2(totKm*cfg.commuteRate),'']);
   } else {
     rows.push(['Datum','Van','Naar','Gereden km','Vergoedbare km','Bedrag (€)','Opmerking']);
     e.filter(t => t.type==='business' && (t.br||0)>0).forEach(t => {
       const kr = t.br||0;
-      totKm += parseFloat(t.km)||0;
-      totR += kr;
+      const km = parseFloat(t.km)||0;
+      totKm += km; totR += kr;
       const note = (t.cr||0)>0 ? `Boven ww-grens (${t.cr} km ww)` : (t.notes||'');
-      rows.push([fmtDate(t.date), t.from, t.to, fmtNum(t.km), fmtNum(kr), eur(kr*cfg.businessRate), note]);
+      rows.push([fmtDate(t.date), t.from, t.to, km, kr, round2(kr*cfg.businessRate), note]);
     });
     rows.push([]);
-    rows.push(['','','TOTAAL', fmtNum(totKm), fmtNum(totR), eur(totR*cfg.businessRate),'']);
+    rows.push(['','','TOTAAL', totKm, totR, round2(totR*cfg.businessRate),'']);
   }
 
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(';')).join('\r\n');
-  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `Reiskosten_${type==='commute'?'Woonwerk':'Zakelijk'}_${curMonth}.csv`;
-  a.click();
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+
+  // Kolombreedte
+  ws['!cols'] = type==='commute'
+    ? [{wch:12},{wch:32},{wch:32},{wch:22},{wch:13},{wch:15},{wch:12},{wch:28}]
+    : [{wch:12},{wch:32},{wch:32},{wch:13},{wch:15},{wch:12},{wch:28}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, type==='commute'?'Woon-werk':'Zakelijk');
+  XLSX.writeFile(wb, `Reiskosten_${type==='commute'?'Woonwerk':'Zakelijk'}_${curMonth}.xlsx`);
 }
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
@@ -355,7 +364,7 @@ function sumCard() {
 
 function expCard() {
   return `<div class="card exp-pad">
-    <div class="exp-title">Exporteren als CSV</div>
+    <div class="exp-title">Exporteren als Excel</div>
     <div class="exp-btns">
       <button class="btn btn-commute" onclick="doExport('commute')">📥 Woon-werk export</button>
       <button class="btn btn-biz" onclick="doExport('business')">📥 Zakelijk export</button>
