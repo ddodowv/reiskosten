@@ -120,6 +120,27 @@ input:focus,select:focus{border-color:var(--accent)}
 .toggle-c{background:rgba(0,122,255,.1);color:var(--commute)}.toggle-c:hover{background:rgba(0,122,255,.2)}
 .toggle-b{background:rgba(255,149,0,.1);color:var(--biz)}.toggle-b:hover{background:rgba(255,149,0,.2)}
 
+/* TOTALEN */
+.totals-wrap{padding:20px 24px;max-width:1200px;width:100%;margin:0 auto}
+.totals-card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.totals-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border)}
+.year-nav{display:flex;align-items:center;gap:4px;background:var(--bg);border-radius:20px;padding:3px}
+.year-nav button{border:none;background:none;cursor:pointer;width:28px;height:28px;border-radius:14px;font-size:18px;color:var(--accent);display:flex;align-items:center;justify-content:center;transition:background .15s}
+.year-nav button:hover{background:rgba(0,0,0,.06)}
+.year-nav span{min-width:60px;text-align:center;font-weight:600;font-size:14px;padding:0 4px}
+.totals-table th{text-align:right;padding:9px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);border-bottom:1px solid var(--border)}
+.totals-table th:first-child{text-align:left}
+.totals-table td{text-align:right;padding:9px 14px;font-size:13px;vertical-align:middle}
+.totals-table td:first-child{text-align:left;font-weight:500}
+.totals-table tr.cur-month{background:rgba(0,122,255,.05)}
+.totals-table tr.total-row td{font-weight:700;border-top:2px solid var(--border);background:var(--bg)}
+.totals-table tr.total-row td:first-child{color:var(--text)}
+.col-ww{color:var(--commute)}
+.col-biz{color:var(--biz)}
+.group-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:6px 14px 2px;color:var(--text3);background:var(--bg);border-bottom:1px solid var(--border)}
+.month-link{cursor:pointer;color:var(--accent);text-decoration:none}
+.month-link:hover{text-decoration:underline}
+
 @media(max-width:768px){main{grid-template-columns:1fr}.sidebar{order:-1}}
 </style>
 </head>
@@ -136,6 +157,7 @@ let trips = [];
 let ovTrips = [];
 let curMonth = new Date().toISOString().slice(0,7);
 let activeTab = 'auto';
+let totalsYear = new Date().getFullYear();
 let showTrip = false, showSettings = false, editId = null;
 let f = { date: '', from: '', to: '', type: 'commute', km: '', notes: '' };
 
@@ -507,14 +529,20 @@ function html() {
   const tabBar = `<div class="tab-bar">
     <button class="tab-btn${activeTab==='auto'?' active':''}" onclick="setTab('auto')">🚗 Auto</button>
     <button class="tab-btn${activeTab==='ov'?' active':''}" onclick="setTab('ov')">🚆 Openbaar vervoer</button>
+    <button class="tab-btn${activeTab==='totals'?' active':''}" onclick="setTab('totals')">📊 Totalen</button>
   </div>`;
-  const content = activeTab==='auto'
-    ? `<main><div>${tripTable()}</div><div class="sidebar">${sumCard()}${expCard()}</div></main>`
-    : `<main><div>${ovTable()}</div><div class="sidebar">${ovSumCard()}${ovExpCard()}</div></main>`;
+  let content;
+  if(activeTab==='auto')
+    content = `<main><div>${tripTable()}</div><div class="sidebar">${sumCard()}${expCard()}</div></main>`;
+  else if(activeTab==='ov')
+    content = `<main><div>${ovTable()}</div><div class="sidebar">${ovSumCard()}${ovExpCard()}</div></main>`;
+  else
+    content = totalsView();
   return header() + tabBar + content + tripModal() + settingsModal();
 }
 
 function setTab(tab) { activeTab = tab; render(); }
+function navYear(d) { totalsYear += d; render(); }
 
 function header() {
   return `<header>
@@ -529,6 +557,115 @@ function header() {
       <button class="btn-icon" onclick="openSettings()" title="Instellingen">⚙️</button>
     </div>
   </header>`;
+}
+
+// ── TOTALEN ────────────────────────────────────────────────────────────────
+function totalsView() {
+  const months = Array.from({length:12}, (_,i) => {
+    const m = String(i+1).padStart(2,'0');
+    return `${totalsYear}-${m}`;
+  });
+
+  const MONTHS_NL = ['Januari','Februari','Maart','April','Mei','Juni','Juli','Augustus','September','Oktober','November','December'];
+
+  // Bereken per maand
+  const rows = months.map((m, i) => {
+    const s = summary(m);
+    const ovList = ovMonthTrips(m);
+    const ovWW  = ovList.filter(t=>t.type==='commute').reduce((a,t)=>a+t.bedrag,0);
+    const ovBiz = ovList.filter(t=>t.type==='business').reduce((a,t)=>a+t.bedrag,0);
+    const autoTotal = s.wAmt + s.bAmt;
+    const ovTotal   = ovWW + ovBiz;
+    const total     = autoTotal + ovTotal;
+    const hasData   = s.wkm>0 || s.bkm>0 || ovList.length>0;
+    const isCur     = m === curMonth;
+    return { m, i, s, ovWW, ovBiz, autoTotal, ovTotal, total, hasData, isCur };
+  });
+
+  // Jaartotalen
+  const jt = rows.reduce((a,r) => ({
+    wreibm:  a.wreibm  + r.s.wreibm,
+    wAmt:    a.wAmt    + r.s.wAmt,
+    wkmFull: a.wkmFull + r.s.wkm,
+    wAmtFull:a.wAmtFull+ r.s.wAmtFull,
+    breibm:  a.breibm  + r.s.breibm,
+    bAmt:    a.bAmt    + r.s.bAmt,
+    ovWW:    a.ovWW    + r.ovWW,
+    ovBiz:   a.ovBiz   + r.ovBiz,
+    total:   a.total   + r.total,
+  }), {wreibm:0,wAmt:0,wkmFull:0,wAmtFull:0,breibm:0,bAmt:0,ovWW:0,ovBiz:0,total:0});
+
+  const c = v => `€ ${v.toFixed(2).replace('.',',')}`;
+  const k = v => v > 0 ? `${fmtKm(v)} km` : '—';
+
+  const tableRows = rows.map(r => {
+    const cls = r.isCur ? ' class="cur-month"' : '';
+    const dim = r.hasData ? '' : 'style="color:var(--text3)"';
+    return `<tr${cls}>
+      <td><span class="month-link" onclick="goToMonth('${r.m}')">${MONTHS_NL[r.i]}</span></td>
+      <td ${dim} class="col-ww">${k(r.s.wreibm)}</td>
+      <td ${dim} class="col-ww">${r.s.wAmt>0?c(r.s.wAmt):'—'}</td>
+      <td ${dim} class="col-biz">${k(r.s.breibm)}</td>
+      <td ${dim} class="col-biz">${r.s.bAmt>0?c(r.s.bAmt):'—'}</td>
+      <td ${dim} class="col-ww">${r.ovWW>0?c(r.ovWW):'—'}</td>
+      <td ${dim} class="col-biz">${r.ovBiz>0?c(r.ovBiz):'—'}</td>
+      <td ${dim} style="font-weight:600">${r.total>0?c(r.total):'—'}</td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="totals-wrap">
+    <div class="totals-card">
+      <div class="totals-nav">
+        <span style="font-size:15px;font-weight:600">Overzicht ${totalsYear}</span>
+        <div class="year-nav">
+          <button onclick="navYear(-1)">‹</button>
+          <span>${totalsYear}</span>
+          <button onclick="navYear(1)">›</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="totals-table">
+          <thead>
+            <tr>
+              <th rowspan="2" style="text-align:left;vertical-align:bottom">Maand</th>
+              <th colspan="2" style="text-align:center;border-bottom:none;color:var(--commute)">Auto woon-werk</th>
+              <th colspan="2" style="text-align:center;border-bottom:none;color:var(--biz)">Auto zakelijk</th>
+              <th colspan="2" style="text-align:center;border-bottom:none;color:var(--text3)">OV</th>
+              <th rowspan="2" style="vertical-align:bottom">Totaal</th>
+            </tr>
+            <tr>
+              <th class="col-ww">Km</th><th class="col-ww">Bedrag</th>
+              <th class="col-biz">Km</th><th class="col-biz">Bedrag</th>
+              <th class="col-ww">Woon-werk</th><th class="col-biz">Zakelijk</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+            <tr class="total-row">
+              <td>Jaartotaal</td>
+              <td class="col-ww">${k(jt.wreibm)}</td>
+              <td class="col-ww">${c(jt.wAmt)}</td>
+              <td class="col-biz">${k(jt.breibm)}</td>
+              <td class="col-biz">${c(jt.bAmt)}</td>
+              <td class="col-ww">${c(jt.ovWW)}</td>
+              <td class="col-biz">${c(jt.ovBiz)}</td>
+              <td>${c(jt.total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function goToMonth(m) {
+  curMonth = m;
+  activeTab = m.includes(curMonth.slice(0,4)) ? (trips.filter(t=>t.date.startsWith(m)).length ? 'auto' : 'ov') : 'auto';
+  // Ga naar auto als er auto-trips zijn, anders OV
+  if(trips.filter(t=>t.date.startsWith(m)).length > 0) activeTab='auto';
+  else if(ovTrips.filter(t=>t.datum.startsWith(m)).length > 0) activeTab='ov';
+  else activeTab='auto';
+  render();
 }
 
 function autoMonthNav() {
