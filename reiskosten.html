@@ -520,11 +520,6 @@ function header() {
   return `<header>
     <div class="header-left">
       <span class="app-title">🚗 Reiskosten</span>
-      ${activeTab==='auto' ? `<div class="month-nav">
-        <button onclick="navMonth(-1)">‹</button>
-        <span class="month-name">${monthLabel(curMonth)}</span>
-        <button onclick="navMonth(1)">›</button>
-      </div>` : ''}
     </div>
     <div class="header-right">
       ${activeTab==='auto'
@@ -536,9 +531,20 @@ function header() {
   </header>`;
 }
 
+function autoMonthNav() {
+  return `<div class="month-nav">
+    <button onclick="navMonth(-1)">‹</button>
+    <span class="month-name">${monthLabel(curMonth)}</span>
+    <button onclick="navMonth(1)">›</button>
+  </div>`;
+}
+
 function tripTable() {
   const list = enrich(monthTrips(curMonth));
-  if(!list.length) return `<div class="card"><div class="empty"><div class="icon">🗺️</div><p>Geen reizen in ${monthLabel(curMonth)}</p><small>Klik op "+ Reis toevoegen" om te beginnen</small></div></div>`;
+  if(!list.length) return `<div class="card">
+    <div class="card-header">${autoMonthNav()}</div>
+    <div class="empty"><div class="icon">🗺️</div><p>Geen reizen in ${monthLabel(curMonth)}</p><small>Klik op "+ Reis toevoegen" om te beginnen</small></div>
+  </div>`;
 
   const rows = list.map(t => {
     const km = parseFloat(t.km)||0;
@@ -568,7 +574,7 @@ function tripTable() {
 
   return `<div class="card">
     <div class="card-header">
-      <span class="card-title">Reizen — ${monthLabel(curMonth)}</span>
+      ${autoMonthNav()}
       <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
     </div>
     <table>
