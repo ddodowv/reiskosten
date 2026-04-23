@@ -361,11 +361,23 @@ function delOvTrip(id) {
   render();
 }
 
+function ovMonthNav() {
+  return `<div class="month-nav">
+    <button onclick="navMonth(-1)">‹</button>
+    <span class="month-name">${monthLabel(curMonth)}</span>
+    <button onclick="navMonth(1)">›</button>
+  </div>`;
+}
+
 function ovTable() {
   const list = ovMonthTrips(curMonth);
   if(!list.length) return `<div class="card">
-    <div class="upload-zone" onclick="document.getElementById('ov-file-input2').click()">
+    <div class="card-header">
+      ${ovMonthNav()}
+      <button class="btn btn-ghost" style="font-size:12px" onclick="document.getElementById('ov-file-input2').click()">📎 CSV inladen</button>
       <input type="file" id="ov-file-input2" accept=".csv" style="display:none" onchange="loadOvCsv(event)">
+    </div>
+    <div class="upload-zone" style="border:none;border-radius:0" onclick="document.getElementById('ov-file-input2').click()">
       <div class="icon">🚆</div>
       <p>Geen OV-reizen in ${monthLabel(curMonth)}</p>
       <small>Klik hier of gebruik "CSV inladen" om een NS-export te importeren</small>
@@ -396,7 +408,7 @@ function ovTable() {
 
   return `<div class="card">
     <div class="card-header">
-      <span class="card-title">OV-reizen — ${monthLabel(curMonth)}</span>
+      ${ovMonthNav()}
       <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
     </div>
     <table>
@@ -508,11 +520,11 @@ function header() {
   return `<header>
     <div class="header-left">
       <span class="app-title">🚗 Reiskosten</span>
-      <div class="month-nav">
+      ${activeTab==='auto' ? `<div class="month-nav">
         <button onclick="navMonth(-1)">‹</button>
         <span class="month-name">${monthLabel(curMonth)}</span>
         <button onclick="navMonth(1)">›</button>
-      </div>
+      </div>` : ''}
     </div>
     <div class="header-right">
       ${activeTab==='auto'
