@@ -584,16 +584,16 @@ function totalsView() {
 
   // Jaartotalen
   const jt = rows.reduce((a,r) => ({
+    wkm:     a.wkm     + r.s.wkm,
     wreibm:  a.wreibm  + r.s.wreibm,
     wAmt:    a.wAmt    + r.s.wAmt,
-    wkmFull: a.wkmFull + r.s.wkm,
-    wAmtFull:a.wAmtFull+ r.s.wAmtFull,
+    bkm:     a.bkm     + r.s.bkm,
     breibm:  a.breibm  + r.s.breibm,
     bAmt:    a.bAmt    + r.s.bAmt,
     ovWW:    a.ovWW    + r.ovWW,
     ovBiz:   a.ovBiz   + r.ovBiz,
     total:   a.total   + r.total,
-  }), {wreibm:0,wAmt:0,wkmFull:0,wAmtFull:0,breibm:0,bAmt:0,ovWW:0,ovBiz:0,total:0});
+  }), {wkm:0,wreibm:0,wAmt:0,bkm:0,breibm:0,bAmt:0,ovWW:0,ovBiz:0,total:0});
 
   const c = v => `€ ${v.toFixed(2).replace('.',',')}`;
   const k = v => v > 0 ? `${fmtKm(v)} km` : '—';
@@ -603,8 +603,10 @@ function totalsView() {
     const dim = r.hasData ? '' : 'style="color:var(--text3)"';
     return `<tr${cls}>
       <td><span class="month-link" onclick="goToMonth('${r.m}')">${MONTHS_NL[r.i]}</span></td>
+      <td ${dim} class="col-ww">${k(r.s.wkm)}</td>
       <td ${dim} class="col-ww">${k(r.s.wreibm)}</td>
       <td ${dim} class="col-ww">${r.s.wAmt>0?c(r.s.wAmt):'—'}</td>
+      <td ${dim} class="col-biz">${k(r.s.bkm)}</td>
       <td ${dim} class="col-biz">${k(r.s.breibm)}</td>
       <td ${dim} class="col-biz">${r.s.bAmt>0?c(r.s.bAmt):'—'}</td>
       <td ${dim} class="col-ww">${r.ovWW>0?c(r.ovWW):'—'}</td>
@@ -628,14 +630,14 @@ function totalsView() {
           <thead>
             <tr>
               <th rowspan="2" style="text-align:left;vertical-align:bottom">Maand</th>
-              <th colspan="2" style="text-align:center;border-bottom:none;color:var(--commute)">Auto woon-werk</th>
-              <th colspan="2" style="text-align:center;border-bottom:none;color:var(--biz)">Auto zakelijk</th>
+              <th colspan="3" style="text-align:center;border-bottom:none;color:var(--commute)">Auto woon-werk</th>
+              <th colspan="3" style="text-align:center;border-bottom:none;color:var(--biz)">Auto zakelijk</th>
               <th colspan="2" style="text-align:center;border-bottom:none;color:var(--text3)">OV</th>
               <th rowspan="2" style="vertical-align:bottom">Totaal</th>
             </tr>
             <tr>
-              <th class="col-ww">Km</th><th class="col-ww">Bedrag</th>
-              <th class="col-biz">Km</th><th class="col-biz">Bedrag</th>
+              <th class="col-ww">Gereden</th><th class="col-ww">Vergoed</th><th class="col-ww">Bedrag</th>
+              <th class="col-biz">Gereden</th><th class="col-biz">Vergoed</th><th class="col-biz">Bedrag</th>
               <th class="col-ww">Woon-werk</th><th class="col-biz">Zakelijk</th>
             </tr>
           </thead>
@@ -643,8 +645,10 @@ function totalsView() {
             ${tableRows}
             <tr class="total-row">
               <td>Jaartotaal</td>
+              <td class="col-ww">${k(jt.wkm)}</td>
               <td class="col-ww">${k(jt.wreibm)}</td>
               <td class="col-ww">${c(jt.wAmt)}</td>
+              <td class="col-biz">${k(jt.bkm)}</td>
               <td class="col-biz">${k(jt.breibm)}</td>
               <td class="col-biz">${c(jt.bAmt)}</td>
               <td class="col-ww">${c(jt.ovWW)}</td>
