@@ -104,6 +104,22 @@ input:focus,select:focus{border-color:var(--accent)}
 .addr-chip.home{color:var(--commute)}.addr-chip.home:hover{background:rgba(0,122,255,.12)}
 .addr-chip.work{color:#34c759}.addr-chip.work:hover{background:rgba(52,199,89,.12)}
 
+/* TABS */
+.tab-bar{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;display:flex;gap:4px;position:sticky;top:54px;z-index:99}
+.tab-btn{border:none;background:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;color:var(--text3);padding:12px 16px;border-bottom:2px solid transparent;transition:all .15s}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* OV UPLOAD */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--r);padding:36px 20px;text-align:center;cursor:pointer;transition:all .15s;color:var(--text3)}
+.upload-zone:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,122,255,.03)}
+.upload-zone .icon{font-size:32px;margin-bottom:8px}
+.upload-zone p{font-size:14px;font-weight:500;margin-bottom:4px}
+.upload-zone small{font-size:12px}
+.toggle-type{border:none;background:none;cursor:pointer;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;transition:all .15s}
+.toggle-c{background:rgba(0,122,255,.1);color:var(--commute)}.toggle-c:hover{background:rgba(0,122,255,.2)}
+.toggle-b{background:rgba(255,149,0,.1);color:var(--biz)}.toggle-b:hover{background:rgba(255,149,0,.2)}
+
 @media(max-width:768px){main{grid-template-columns:1fr}.sidebar{order:-1}}
 </style>
 </head>
@@ -113,10 +129,13 @@ input:focus,select:focus{border-color:var(--accent)}
 // ── STATE ──────────────────────────────────────────────────────────────────
 let cfg = {
   homeAddress: '', workAddress: '',
-  commuteRate: 0.23, businessRate: 0.28, defaultCommuteKm: ''
+  commuteRate: 0.23, businessRate: 0.28, defaultCommuteKm: '',
+  homeStation: '', workStation: ''
 };
 let trips = [];
+let ovTrips = [];
 let curMonth = new Date().toISOString().slice(0,7);
+let activeTab = 'auto';
 let showTrip = false, showSettings = false, editId = null;
 let f = { date: '', from: '', to: '', type: 'commute', km: '', notes: '' };
 
@@ -124,7 +143,7 @@ function persist() {
   fetch('/api/data', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({cfg, trips})
+    body: JSON.stringify({cfg, trips, ovTrips})
   }).catch(() => alert('Opslaan mislukt. Draait de server nog?'));
 }
 
@@ -132,8 +151,9 @@ async function init() {
   try {
     const resp = await fetch('/api/data');
     const data = await resp.json();
-    if(data.cfg)   cfg   = {...cfg,   ...data.cfg};
-    if(data.trips) trips = data.trips;
+    if(data.cfg)     cfg     = {...cfg, ...data.cfg};
+    if(data.trips)   trips   = data.trips;
+    if(data.ovTrips) ovTrips = data.ovTrips;
   } catch(e) {
     console.warn('Kan data niet laden via server:', e);
   }
@@ -253,6 +273,197 @@ function doExport(type) {
   XLSX.writeFile(wb, `Reiskosten_${type==='commute'?'Woonwerk':'Zakelijk'}_${curMonth}.xlsx`);
 }
 
+// ── OV ─────────────────────────────────────────────────────────────────────
+function normStation(s) { return (s||'').toLowerCase().trim(); }
+
+function classifyOvTrip(t) {
+  if(!cfg.homeStation || !cfg.workStation) return 'business';
+  const v = normStation(t.vertrek), b = normStation(t.bestemming);
+  const h = normStation(cfg.homeStation), w = normStation(cfg.workStation);
+  return (v===h && b===w) || (v===w && b===h) ? 'commute' : 'business';
+}
+
+function parseBedrag(s) {
+  return parseFloat((s||'').replace(/€/g,'').replace(',','.').trim()) || 0;
+}
+
+function dutchToIso(d) {
+  // dd-mm-yyyy → yyyy-mm-dd
+  const p = (d||'').split('-');
+  return p.length===3 ? `${p[2]}-${p[1]}-${p[0]}` : d;
+}
+
+function loadOvCsv(event) {
+  const file = event.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if(lines.length < 2) { alert('Geen reizen gevonden in het bestand.'); return; }
+    const header = lines[0].split(';');
+    const idx = h => header.findIndex(c => c.trim().toLowerCase() === h.toLowerCase());
+    const iNaam=idx('Naam pas'), iSoort=idx('Soort pas'), iDatum=idx('Datum'),
+          iVerv=idx('Vervoerder'), iIn=idx('Incheck'), iVert=idx('Vertrek'),
+          iUit=idx('Uitcheck'), iBest=idx('Bestemming'), iProd=idx('Product'),
+          iBed=idx('Bedrag'), iOpm=idx('Opmerking');
+    let added = 0;
+    lines.slice(1).forEach(line => {
+      const c = line.split(';');
+      if(c.length < 5) return;
+      const trip = {
+        id: genId(),
+        naamPas:    (c[iNaam]||'').trim(),
+        soortPas:   (c[iSoort]||'').trim(),
+        datum:      dutchToIso((c[iDatum]||'').trim()),
+        vervoerder: (c[iVerv]||'').trim(),
+        incheck:    (c[iIn]||'').trim(),
+        vertrek:    (c[iVert]||'').trim(),
+        uitcheck:   (c[iUit]||'').trim(),
+        bestemming: (c[iBest]||'').trim(),
+        product:    (c[iProd]||'').trim(),
+        bedrag:     parseBedrag(c[iBed]),
+        opmerking:  (c[iOpm]||'').trim(),
+        typeOverride: null
+      };
+      trip.type = classifyOvTrip(trip);
+      // Voorkom duplicaten op basis van datum+incheck+vertrek
+      const isDup = ovTrips.some(x => x.datum===trip.datum && x.incheck===trip.incheck && x.vertrek===trip.vertrek);
+      if(!isDup) { ovTrips.push(trip); added++; }
+    });
+    persist();
+    curMonth = ovTrips.length ? ovTrips[ovTrips.length-1].datum.slice(0,7) : curMonth;
+    event.target.value = '';
+    alert(`${added} rit(ten) ingeladen.`);
+    render();
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function ovMonthTrips(m) {
+  return ovTrips.filter(t => t.datum.startsWith(m))
+    .sort((a,b) => a.datum < b.datum ? -1 : a.datum > b.datum ? 1 : a.incheck.localeCompare(b.incheck));
+}
+
+function toggleOvType(id) {
+  const t = ovTrips.find(x => x.id===id);
+  if(!t) return;
+  t.typeOverride = t.type==='commute' ? 'business' : 'commute';
+  t.type = t.typeOverride;
+  persist();
+  render();
+}
+
+function delOvTrip(id) {
+  if(!confirm('Weet je zeker dat je deze rit wilt verwijderen?')) return;
+  ovTrips = ovTrips.filter(x => x.id!==id);
+  persist();
+  render();
+}
+
+function ovTable() {
+  const list = ovMonthTrips(curMonth);
+  if(!list.length) return `<div class="card">
+    <div class="upload-zone" onclick="document.getElementById('ov-file-input2').click()">
+      <input type="file" id="ov-file-input2" accept=".csv" style="display:none" onchange="loadOvCsv(event)">
+      <div class="icon">🚆</div>
+      <p>Geen OV-reizen in ${monthLabel(curMonth)}</p>
+      <small>Klik hier of gebruik "CSV inladen" om een NS-export te importeren</small>
+    </div>
+  </div>`;
+
+  const rows = list.map(t => {
+    const isC = t.type==='commute';
+    const isoDate = t.datum; // yyyy-mm-dd
+    const [y,m,d] = isoDate.split('-');
+    const dispDate = `${d}-${m}-${y}`;
+    return `<tr>
+      <td>${dispDate}</td>
+      <td>${esc(t.vervoerder)}</td>
+      <td style="color:var(--text3);font-size:12px">${t.incheck}</td>
+      <td>${esc(t.vertrek)}</td>
+      <td style="color:var(--text3);font-size:12px">${t.uitcheck}</td>
+      <td>${esc(t.bestemming)}</td>
+      <td style="font-weight:500">€ ${t.bedrag.toFixed(2).replace('.',',')}</td>
+      <td>
+        <button class="toggle-type ${isC?'toggle-c':'toggle-b'}" onclick="toggleOvType(${t.id})" title="Klik om te wisselen">
+          ${isC?'🏠 Woon-werk':'💼 Zakelijk'}
+        </button>
+      </td>
+      <td><button class="action-btn del" onclick="delOvTrip(${t.id})">🗑️</button></td>
+    </tr>`;
+  }).join('');
+
+  return `<div class="card">
+    <div class="card-header">
+      <span class="card-title">OV-reizen — ${monthLabel(curMonth)}</span>
+      <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
+    </div>
+    <table>
+      <thead><tr><th>Datum</th><th>Vervoerder</th><th>Incheck</th><th>Vertrek</th><th>Uitcheck</th><th>Bestemming</th><th>Bedrag</th><th>Type</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function ovSumCard() {
+  const list = ovMonthTrips(curMonth);
+  const ww = list.filter(t => t.type==='commute');
+  const zk = list.filter(t => t.type==='business');
+  const wwTot = ww.reduce((s,t) => s+t.bedrag, 0);
+  const zkTot = zk.reduce((s,t) => s+t.bedrag, 0);
+  return `<div class="card sum-pad">
+    <div class="sum-lbl" style="color:var(--commute)">🏠 Woon-werk OV</div>
+    <div class="sum-row"><span class="sum-row-lbl">Aantal ritten</span><span class="sum-row-val">${ww.length}</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Totaal bedrag</span><span class="sum-row-val" style="color:var(--commute)">€ ${wwTot.toFixed(2).replace('.',',')}</span></div>
+    <div class="divider"></div>
+    <div class="sum-lbl" style="color:var(--biz)">💼 Zakelijk OV</div>
+    <div class="sum-row"><span class="sum-row-lbl">Aantal ritten</span><span class="sum-row-val">${zk.length}</span></div>
+    <div class="sum-row"><span class="sum-row-lbl">Totaal bedrag</span><span class="sum-row-val" style="color:var(--biz)">€ ${zkTot.toFixed(2).replace('.',',')}</span></div>
+    <div class="divider"></div>
+    <div class="sum-total"><span>Totaal</span><span>€ ${(wwTot+zkTot).toFixed(2).replace('.',',')}</span></div>
+  </div>`;
+}
+
+function ovExpCard() {
+  return `<div class="card exp-pad">
+    <div class="exp-title">Exporteren als Excel</div>
+    <div class="exp-btns">
+      <button class="btn btn-commute" onclick="exportOvExcel('commute')">📥 Woon-werk OV export</button>
+      <button class="btn btn-biz" onclick="exportOvExcel('business')">📥 Zakelijk OV export</button>
+    </div>
+  </div>`;
+}
+
+function exportOvExcel(type) {
+  if(typeof XLSX === 'undefined') { alert('Excel bibliotheek niet geladen.'); return; }
+  const list = ovMonthTrips(curMonth).filter(t => t.type===type);
+  if(!list.length) { alert('Geen ritten om te exporteren.'); return; }
+
+  const header = ['Naam pas','Soort pas','Datum','Vervoerder','Incheck','Vertrek','Uitcheck','Bestemming','Product','Bedrag','Opmerking'];
+  const rows = [header];
+  let totaal = 0;
+
+  list.forEach(t => {
+    const [y,m,d] = t.datum.split('-');
+    rows.push([
+      t.naamPas, t.soortPas, `${d}-${m}-${y}`, t.vervoerder,
+      t.incheck, t.vertrek, t.uitcheck, t.bestemming,
+      t.product, t.bedrag, t.opmerking
+    ]);
+    totaal += t.bedrag;
+  });
+
+  rows.push([]);
+  rows.push(['','','','','','','','','TOTAAL', round2(totaal),'']);
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:12},{wch:12},{wch:8},{wch:26},{wch:8},{wch:26},{wch:12},{wch:10},{wch:30}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, type==='commute'?'Woon-werk OV':'Zakelijk OV');
+  XLSX.writeFile(wb, `OV_${type==='commute'?'Woonwerk':'Zakelijk'}_${curMonth}.xlsx`);
+}
+
 // ── HELPERS ────────────────────────────────────────────────────────────────
 function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function monthLabel(m) {
@@ -281,8 +492,17 @@ function render() {
 }
 
 function html() {
-  return header() + `<main><div>${tripTable()}</div><div class="sidebar">${sumCard()}${expCard()}</div></main>` + tripModal() + settingsModal();
+  const tabBar = `<div class="tab-bar">
+    <button class="tab-btn${activeTab==='auto'?' active':''}" onclick="setTab('auto')">🚗 Autokosten</button>
+    <button class="tab-btn${activeTab==='ov'?' active':''}" onclick="setTab('ov')">🚆 Openbaar vervoer</button>
+  </div>`;
+  const content = activeTab==='auto'
+    ? `<main><div>${tripTable()}</div><div class="sidebar">${sumCard()}${expCard()}</div></main>`
+    : `<main><div>${ovTable()}</div><div class="sidebar">${ovSumCard()}${ovExpCard()}</div></main>`;
+  return header() + tabBar + content + tripModal() + settingsModal();
 }
+
+function setTab(tab) { activeTab = tab; render(); }
 
 function header() {
   return `<header>
@@ -295,7 +515,10 @@ function header() {
       </div>
     </div>
     <div class="header-right">
-      <button class="btn btn-primary" onclick="openAdd()">+ Reis toevoegen</button>
+      ${activeTab==='auto'
+        ? `<button class="btn btn-primary" onclick="openAdd()">+ Reis toevoegen</button>`
+        : `<button class="btn btn-primary" onclick="document.getElementById('ov-file-input').click()">📎 CSV inladen</button><input type="file" id="ov-file-input" accept=".csv" style="display:none" onchange="loadOvCsv(event)">`
+      }
       <button class="btn-icon" onclick="openSettings()" title="Instellingen">⚙️</button>
     </div>
   </header>`;
@@ -455,10 +678,21 @@ function settingsModal() {
           <label for="s-dkm">Standaard km woon-werk rit</label>
           <input type="number" id="s-dkm" value="${cfg.defaultCommuteKm||''}" placeholder="Leeg = geen standaard" min="0" step="0.1">
         </div>
+        <div class="divider"></div>
+        <div class="sum-lbl" style="margin-bottom:12px">🚆 OV-stations (woon-werk)</div>
+        <div class="frow2">
+          <div>
+            <label for="s-hs">Thuisstation</label>
+            <input type="text" id="s-hs" value="${esc(cfg.homeStation||'')}" placeholder="Bijv. Amersfoort Vathorst">
+          </div>
+          <div>
+            <label for="s-ws">Werkstation</label>
+            <input type="text" id="s-ws" value="${esc(cfg.workStation||'')}" placeholder="Bijv. Den Haag Centraal">
+          </div>
+        </div>
         <div class="info-box">
-          <strong>Regels:</strong> Woon-werk wordt vergoed tot max. ${MAX_WW} km per dag.
-          Zakelijke ritten vanaf het thuisadres tellen tot ${MAX_WW} km als woon-werk;
-          het meerdere wordt als zakelijk vergoed.
+          <strong>Autokosten:</strong> Woon-werk wordt vergoed tot max. ${MAX_WW} km per dag.<br>
+          <strong>OV:</strong> Ritten tussen thuis- en werkstation (heen of terug) zijn woon-werk. Alle overige ritten zijn zakelijk.
         </div>
       </div>
       <div class="modal-ftr">
@@ -559,6 +793,10 @@ function saveSettings() {
   cfg.commuteRate = parseFloat(document.getElementById('s-cr')?.value)||0.23;
   cfg.businessRate = parseFloat(document.getElementById('s-br')?.value)||0.28;
   cfg.defaultCommuteKm = document.getElementById('s-dkm')?.value||'';
+  cfg.homeStation = (document.getElementById('s-hs')?.value||'').trim();
+  cfg.workStation = (document.getElementById('s-ws')?.value||'').trim();
+  // Herclassificeer bestaande OV-ritten zonder handmatige override
+  ovTrips.forEach(t => { if(!t.typeOverride) t.type = classifyOvTrip(t); });
   persist();
   closeSettings();
 }
