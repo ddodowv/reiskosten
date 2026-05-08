@@ -934,7 +934,7 @@ function saveTrip() {
     if(i>=0) trips[i]={...trips[i], date, from, to, type:f.type, km, notes:f.notes||''};
   } else {
     trips.push({id:genId(), date, from, to, type:f.type, km, notes:f.notes||''});
-    if(confirm(`Ook een terugreis toevoegen?\n\n${to} → ${from}\n${km} km`)) {
+    if(f.type==='commute' && confirm(`Ook een terugreis toevoegen?\n\n${to} → ${from}\n${km} km`)) {
       trips.push({id:genId(), date, from:to, to:from, type:f.type, km, notes:f.notes||''});
     }
   }
