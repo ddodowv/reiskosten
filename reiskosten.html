@@ -200,24 +200,31 @@ function enrich(list) {
   const out = {};
 
   Object.values(byDay).forEach(dayTrips => {
-    // WOON-WERK: eigen 86km-cap, overschot vervalt (nooit zakelijk tarief)
-    let wwRem = MAX_WW;
+    // Woon-werk en zakelijk-vanuit-huis delen de 86km-pool
+    // Zakelijk NIET vanuit huis: altijd 100% zakelijk
+    let rem = MAX_WW;
+
+    // 1. Woon-werk ritten eerst (overschot vervalt, nooit zakelijk tarief)
     dayTrips.filter(t => t.type==='commute').forEach(t => {
       const km = parseFloat(t.km)||0;
-      const cr = Math.min(km, wwRem);
-      wwRem = Math.max(0, wwRem - km);
+      const cr = Math.min(km, rem);
+      rem = Math.max(0, rem - km);
       out[t.id] = {cr, br: 0};
     });
 
-    // ZAKELIJK: eigen 86km-grens per dag
-    // dag-totaal ≤86km → alles woon-werk tarief; >86km → eerste 86km woon-werk, rest zakelijk
-    let bizRem = MAX_WW;
-    dayTrips.filter(t => t.type==='business').forEach(t => {
+    // 2. Zakelijk VANUIT HUIS: vult resterende woon-werk ruimte op, daarboven zakelijk
+    dayTrips.filter(t => t.type==='business' && isHome(t.from)).forEach(t => {
       const km = parseFloat(t.km)||0;
-      const cr = Math.min(km, bizRem);
+      const cr = Math.min(km, rem);
       const br = km - cr;
-      bizRem = Math.max(0, bizRem - km);
+      rem = Math.max(0, rem - km);
       out[t.id] = {cr, br};
+    });
+
+    // 3. Zakelijk NIET vanuit huis: 100% zakelijk, 86km-regel niet van toepassing
+    dayTrips.filter(t => t.type==='business' && !isHome(t.from)).forEach(t => {
+      const km = parseFloat(t.km)||0;
+      out[t.id] = {cr: 0, br: km};
     });
   });
 
