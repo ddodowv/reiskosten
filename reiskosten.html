@@ -151,15 +151,16 @@ input:focus,select:focus{border-color:var(--accent)}
 let cfg = {
   homeAddress: '', workAddress: '',
   commuteRate: 0.23, businessRate: 0.28, defaultCommuteKm: '',
-  homeStation: '', workStation: ''
+  homeStation: '', workStation: '', ovFietsRate: 4.80
 };
 let trips = [];
 let ovTrips = [];
 let curMonth = new Date().toISOString().slice(0,7);
 let activeTab = 'auto';
 let totalsYear = new Date().getFullYear();
-let showTrip = false, showSettings = false, editId = null;
+let showTrip = false, showSettings = false, showOvFiets = false, editId = null;
 let f = { date: '', from: '', to: '', type: 'commute', km: '', notes: '' };
+let ovf = { date: '', vertrek: '', incheck: '', bestemming: '', uitcheck: '' };
 
 function persist() {
   fetch('/api/data', {
@@ -403,8 +404,11 @@ function ovTable() {
   if(!list.length) return `<div class="card">
     <div class="card-header">
       ${ovMonthNav()}
-      <button class="btn btn-ghost" style="font-size:12px" onclick="document.getElementById('ov-file-input2').click()">📎 CSV inladen</button>
-      <input type="file" id="ov-file-input2" accept=".csv" style="display:none" onchange="loadOvCsv(event)">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost" style="font-size:12px" onclick="openOvFiets()">🚲 OV-fiets toevoegen</button>
+        <button class="btn btn-ghost" style="font-size:12px" onclick="document.getElementById('ov-file-input2').click()">📎 CSV inladen</button>
+        <input type="file" id="ov-file-input2" accept=".csv" style="display:none" onchange="loadOvCsv(event)">
+      </div>
     </div>
     <div class="upload-zone" style="border:none;border-radius:0" onclick="document.getElementById('ov-file-input2').click()">
       <div class="icon">🚆</div>
@@ -438,7 +442,10 @@ function ovTable() {
   return `<div class="card">
     <div class="card-header">
       ${ovMonthNav()}
-      <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="btn btn-ghost" style="font-size:12px" onclick="openOvFiets()">🚲 OV-fiets toevoegen</button>
+        <span style="color:var(--text3);font-size:12px">${list.length} ${list.length===1?'rit':'ritten'}</span>
+      </div>
     </div>
     <table>
       <thead><tr><th>Datum</th><th>Vervoerder</th><th>Incheck</th><th>Vertrek</th><th>Uitcheck</th><th>Bestemming</th><th>Bedrag</th><th>Type</th><th></th></tr></thead>
@@ -545,7 +552,7 @@ function html() {
     content = `<main><div>${ovTable()}</div><div class="sidebar">${ovSumCard()}${ovExpCard()}</div></main>`;
   else
     content = totalsView();
-  return header() + tabBar + content + tripModal() + settingsModal();
+  return header() + tabBar + content + tripModal() + settingsModal() + ovFietsModal();
 }
 
 function setTab(tab) { activeTab = tab; render(); }
@@ -856,6 +863,12 @@ function settingsModal() {
             <input type="text" id="s-ws" value="${esc(cfg.workStation||'')}" placeholder="Bijv. Den Haag Centraal">
           </div>
         </div>
+        <div class="divider"></div>
+        <div class="sum-lbl" style="margin-bottom:12px">🚲 OV-fiets</div>
+        <div class="frow">
+          <label for="s-ovf">Tarief per rit (€)</label>
+          <input type="number" id="s-ovf" value="${cfg.ovFietsRate}" step="0.01" min="0">
+        </div>
         <div class="info-box">
           <strong>Autokosten:</strong> Woon-werk wordt vergoed tot max. ${MAX_WW} km per dag.<br>
           <strong>OV:</strong> Ritten tussen thuis- en werkstation (heen of terug) zijn woon-werk. Alle overige ritten zijn zakelijk.
@@ -864,6 +877,45 @@ function settingsModal() {
       <div class="modal-ftr">
         <button class="btn btn-ghost" onclick="closeSettings()">Annuleren</button>
         <button class="btn btn-primary" onclick="saveSettings()">Opslaan</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function ovFietsModal() {
+  return `<div class="overlay${showOvFiets?' on':''}" id="ovf-ov" onclick="ovClick(event,'ovf')">
+    <div class="modal">
+      <div class="modal-hdr"><span class="modal-title">🚲 OV-fiets rit toevoegen</span><button class="btn-icon" onclick="closeOvFiets()">✕</button></div>
+      <div class="modal-body">
+        <div class="frow">
+          <label for="ovf-date">Datum</label>
+          <input type="date" id="ovf-date" value="${ovf.date}">
+        </div>
+        <div class="frow2">
+          <div>
+            <label for="ovf-vertrek">Ophaallocatie</label>
+            <input type="text" id="ovf-vertrek" value="${esc(ovf.vertrek)}" placeholder="Bijv. Utrecht Centraal Jaarbeursplein">
+          </div>
+          <div>
+            <label for="ovf-incheck">Tijd ophalen</label>
+            <input type="text" id="ovf-incheck" value="${esc(ovf.incheck)}" placeholder="uu:mm:ss">
+          </div>
+        </div>
+        <div class="frow2">
+          <div>
+            <label for="ovf-bestemming">Inleverlocatie</label>
+            <input type="text" id="ovf-bestemming" value="${esc(ovf.bestemming)}" placeholder="Bijv. Utrecht Centraal Jaarbeursplein">
+          </div>
+          <div>
+            <label for="ovf-uitcheck">Tijd inleveren</label>
+            <input type="text" id="ovf-uitcheck" value="${esc(ovf.uitcheck)}" placeholder="uu:mm:ss">
+          </div>
+        </div>
+        <div class="info-box">Bedrag: € ${eur(cfg.ovFietsRate)} (instelbaar bij instellingen). Wordt toegevoegd als zakelijke OV-rit.</div>
+      </div>
+      <div class="modal-ftr">
+        <button class="btn btn-ghost" onclick="closeOvFiets()">Annuleren</button>
+        <button class="btn btn-primary" onclick="saveOvFiets()">Toevoegen</button>
       </div>
     </div>
   </div>`;
@@ -961,14 +1013,54 @@ function saveSettings() {
   cfg.defaultCommuteKm = document.getElementById('s-dkm')?.value||'';
   cfg.homeStation = (document.getElementById('s-hs')?.value||'').trim();
   cfg.workStation = (document.getElementById('s-ws')?.value||'').trim();
+  cfg.ovFietsRate = parseFloat(document.getElementById('s-ovf')?.value)||0;
   // Herclassificeer bestaande OV-ritten zonder handmatige override
   ovTrips.forEach(t => { if(!t.typeOverride) t.type = classifyOvTrip(t); });
   persist();
   closeSettings();
 }
 
+function openOvFiets() {
+  ovf = { date: new Date().toISOString().slice(0,10), vertrek: '', incheck: '', bestemming: '', uitcheck: '' };
+  showOvFiets = true;
+  render();
+  setTimeout(()=>document.getElementById('ovf-vertrek')?.focus(),50);
+}
+
+function closeOvFiets() { showOvFiets=false; render(); }
+
+function saveOvFiets() {
+  const date = document.getElementById('ovf-date')?.value;
+  const vertrek = (document.getElementById('ovf-vertrek')?.value||'').trim();
+  const incheck = (document.getElementById('ovf-incheck')?.value||'').trim();
+  let bestemming = (document.getElementById('ovf-bestemming')?.value||'').trim();
+  const uitcheck = (document.getElementById('ovf-uitcheck')?.value||'').trim();
+  if(!date || !vertrek) { alert('Vul datum en ophaallocatie in.'); return; }
+  if(!bestemming) bestemming = vertrek;
+  ovTrips.push({
+    id: genId(),
+    naamPas: '', soortPas: '',
+    datum: date,
+    vervoerder: 'OV Fiets',
+    incheck, vertrek, uitcheck, bestemming,
+    product: 'OV-fietsrit',
+    bedrag: cfg.ovFietsRate,
+    opmerking: '',
+    type: 'business',
+    typeOverride: 'business'
+  });
+  persist();
+  curMonth = date.slice(0,7);
+  showOvFiets = false;
+  render();
+}
+
 function ovClick(e,which) {
-  if(e.target===e.currentTarget){ which==='trip'?closeTrip():closeSettings(); }
+  if(e.target===e.currentTarget){
+    if(which==='trip') closeTrip();
+    else if(which==='ovf') closeOvFiets();
+    else closeSettings();
+  }
 }
 
 // ── EVENTS ─────────────────────────────────────────────────────────────────
